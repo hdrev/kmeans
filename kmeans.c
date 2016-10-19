@@ -450,15 +450,17 @@ int bisecting_kmeans(int dim, double *data, int k, int *cluster_assign, double *
     //might need to enclose the lines below in a while loop to repeat until count_k == k
     //but be careful with the last parameter of the call to 2means as right now
     //this call to 2means will assign all points to their respective cluster and count_k should be two
-    kmeans3(dim,data,2,cluster_assign,cluster_center,cluster_size,test,max_clusterssd);
-    //calculate ssds to determine which cluster we are going to partition
-    squared_standard_deviation(dim,count_k,cluster_center,cluster_size,test,cluster_ssd);
-    //get the cluster with the biggest ssd
-    max_clusterssd=max_index(cluster_ssd,k);
-    //now I need to call 2 means, passing the max_clusterssd to specify which cluster I need to partition
-    //I also need to modify 2 means to handle the new cluster centers
-    kmeans3(dim,data,2,cluster_assign,cluster_center,cluster_size,test,max_clusterssd); //this call is for count_k > 2
-    //dont forget to increment count_k
+
+    do{
+        kmeans3(dim,data,2,cluster_assign,cluster_center,cluster_size,test,max_clusterssd);
+        squared_standard_deviation(dim,count_k,cluster_center,cluster_size,test,cluster_ssd);
+        max_clusterssd=max_index(cluster_ssd,k);
+        count_k++;
+    }while(count_k != k);
+
+    //Now call kmeans2 with loop counter limit = 5 and then we are done.
+
+
 
     return 0;
 }
