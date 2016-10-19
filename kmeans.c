@@ -28,9 +28,10 @@ double sum_of_squared_errors(int dim, int k, double *cluster_center, int *cluste
 int max_min_newcenter(int dim, double *data, int k, double *cluster_center,int in);
 int bisecting_kmeans(int dim, double *data, int k, int *cluster_assign, double *cluster_center, int *cluster_size);
 void squared_standard_deviation(int dim, int k, double *cluster_center, int *cluster_size, double *test,double *cluster_ssd);
-int kmeans3(int dim, double *data, int k, int *cluster_assign, double *cluster_center, int *cluster_size, double *test, int max_clusterssd);
+int kmeans3(int dim, double *data, int k, int *cluster_assign, double *cluster_center, int *cluster_size, double *test, int max_clusterssd,int count_k);
 int max_index(double *array,int array_size);
 int farthest_point_withinc(int dim, double *test, double *point,int max_clusterssd, int *cluster_size);
+int kmeans2_2(int dim, double *data, int k, int *cluster_assign, double *cluster_center, int *cluster_size);
 int main(){
     int k, dim;
     //k can be 4,8,16,32
@@ -109,7 +110,18 @@ int main(){
 //    printf("The farthest point index from data to tpoint is:= %d\nThe distance was := %lf",tdist,euclidean_distance_8dims(tpoint,&data[tdist]));
     //test kmeans2
 //  --------------
-    kmeans2(dim,data,k,cluster_assign,cluster_center,cluster_size);
+//    kmeans2(dim,data,k,cluster_assign,cluster_center,cluster_size);
+//    printf("Printing results of the K means clustering algorithm\n");
+//    for (int j = 0; j < k; ++j) {
+//        printf("Cluster %d contains %d points.\n",j,cluster_size[j]);
+//    }
+//    printf("The cluster centers are:\n");
+//    for (int l = 0; l < k*dim; ++l) {
+//        printf("%d:--%lf\n",l,cluster_center[l]);
+//    }
+    //-----------------------
+    //going to test bisecting kmeans
+    bisecting_kmeans(dim,data,k,cluster_assign,cluster_center,cluster_size);
     printf("Printing results of the K means clustering algorithm\n");
     for (int j = 0; j < k; ++j) {
         printf("Cluster %d contains %d points.\n",j,cluster_size[j]);
@@ -446,21 +458,21 @@ int bisecting_kmeans(int dim, double *data, int k, int *cluster_assign, double *
         cluster_size[i]=0;
     }
     int count_k=2;
+    //count_k is the number of clusters processed until the line of code
     //call 2-means to bisect
     //might need to enclose the lines below in a while loop to repeat until count_k == k
     //but be careful with the last parameter of the call to 2means as right now
     //this call to 2means will assign all points to their respective cluster and count_k should be two
 
     do{
-        kmeans3(dim,data,2,cluster_assign,cluster_center,cluster_size,test,max_clusterssd);
-        squared_standard_deviation(dim,count_k,cluster_center,cluster_size,test,cluster_ssd);
+        kmeans3(dim,data,2,cluster_assign,cluster_center,cluster_size,test,max_clusterssd,count_k);
+        squared_standard_deviation(dim,k,cluster_center,cluster_size,test,cluster_ssd);
         max_clusterssd=max_index(cluster_ssd,k);
         count_k++;
     }while(count_k != k);
 
-    //Now call kmeans2 with loop counter limit = 5 and then we are done.
-
-
+    //Now call kmeans2.2 with loop_counter limit = 5 and then we are done.
+    kmeans2_2(dim,data,k,cluster_assign,cluster_center,cluster_size);
 
     return 0;
 }
@@ -481,70 +493,165 @@ void squared_standard_deviation(int dim, int k, double *cluster_center, int *clu
     return;
 }
 
-int kmeans3(int dim, double *data, int k, int *cluster_assign, double *cluster_center, int *cluster_size, double *test, int max_clusterssd){
-    int index;
+int kmeans3(int dim, double *data, int k, int *cluster_assign, double *cluster_center, int *cluster_size, double *test, int max_clusterssd, int count_k){
+    int index,r,x,lower_bound,upper_bound, replace_point = -1;
     double change;
     int loop_counter=0;
-    bool new_center;
+    bool found_old_point;
+    //bool new_center;
     double array[dim*k];
+    found_old_point=false;
     //initialize array to 0
     memset(array, 0, dim*k*sizeof(double));
     //each data point calculates its distance to the k centers.
     //assign the data point to the cluster whose center is the closest
     int original_cluster;
-    do{
-        change=0;
-        new_center=false;
-        for (int g = 0; g < N * dim; g+=dim) {
-            original_cluster=cluster_assign[g/dim];
-            //find the array index of the closest cluster center
-            index=find_closest_cluster(k,dim,cluster_center,&data[g]);
-            //if index/dim != cluster_assign[g/dim] the point has a new cluster,
-            //increment change variable & decrement size of old cluster, do nothing if it didn't have an old cluster
-            if(index/dim != cluster_assign[g/dim]){
-                change++;
-                //assign membership of point, index/dim=k cluster
-                cluster_assign[g/dim]=index/dim;
-                //update size of the cluster
-                cluster_size[index/dim]++;
-                //update cluster_points (test)
-                //going to modify test indexes bc the points are only being inserted in a single place
-                //also need to reset values of a point that changed clusters (in test)
-                for (int i = 0; i < dim; ++i) {
-                    //cluster_points[index/dim][g+i] = data[g+i];
-                    //beta test
-                    test[(N*dim*index/dim)+i] = data[g+i];
-                }
-                if(original_cluster > -1 && original_cluster < k){ //if the point had a previous cluster, decrease its size
-                    cluster_size[original_cluster]--;
-                }
-            }
-        }
-        //sum & avg to get new centers for each cluster
-        for (int i = 0; i < k; ++i) {
-            for (int j = 0; j < cluster_size[i] * dim; ++j) {
-                //array[(i*dim) +(j%dim)]+=cluster_points[i][j];//sum the points
-                //beta
-                array[(i*dim) +(j%dim)]+=test[(i*dim*N)+j];
-            }
-            for (int l = 0; l < dim; ++l) {
-                cluster_center[(i*dim)+l]=array[(i*dim)+l]/cluster_size[i];//get the avg & assign the new center
-                //reset array for next iteration
-                array[(i*dim)+l]=0;
-            }
-            //take care of empty clusters here, by using max_min procedure to get new center,
-            //for this version of kmeans, I'll have to remove this part probably
-            if(cluster_size[i]==0){
-                max_min_newcenter(dim,data,k,cluster_center,i);
-                new_center=true;
-            }
-        }
 
-        change /= N;
-        loop_counter++;
-    }while( (change > threshold && loop_counter < 100) || (new_center && loop_counter < 200) );//do while there is change in clusters or reached a lot of iterations
+    if(max_clusterssd == -1){
+        // If this branch is taken it means we don't have any clusters assigned yet
+        do{
+            change=0;
+//            new_center=false;
+            for (int g = 0; g < N * dim; g+=dim) {
+                original_cluster=cluster_assign[g/dim];
+                //find the array index of the closest cluster center
+                index=find_closest_cluster(k,dim,cluster_center,&data[g]);
+                //if index/dim != cluster_assign[g/dim] the point has a new cluster,
+                //increment change variable & decrement size of old cluster, do nothing if it didn't have an old cluster
+                if(index/dim != cluster_assign[g/dim]){
+                    change++;
+                    //assign membership of point, index/dim=k cluster
+                    cluster_assign[g/dim]=index/dim;
+                    //update size of the cluster
+                    cluster_size[index/dim]++;
+                    //update cluster_points
+                    //also need to reset values of a point that changed clusters (in test)
+                    for (int i = 0; i < dim; ++i) {
+                        test[(N*dim*index/dim)+(cluster_size[index/dim]*dim)+i] = data[g+i];
+                    }
+                    if(original_cluster > -1 && original_cluster < k){
+                        //if the point had a previous cluster, decrease its size
+                        cluster_size[original_cluster]--;
+                    }
+                }
+            }
+            //sum & avg to get new centers for each cluster
+            for (int i = 0; i < k; ++i) {
+                for (int j = 0; j < cluster_size[i] * dim; ++j) {
+                    //array[(i*dim) +(j%dim)]+=cluster_points[i][j];//sum the points
+                    //beta
+                    array[(i*dim) +(j%dim)]+=test[(i*dim*N)+j];
+                }
+                for (int l = 0; l < dim; ++l) {
+                    cluster_center[(i*dim)+l]=array[(i*dim)+l]/cluster_size[i];//get the avg & assign the new center
+                    //reset array for next iteration
+                    array[(i*dim)+l]=0;
+                }
+                //take care of empty clusters here, by using max_min procedure to get new center,
+                //for this version of kmeans, I'll have to remove this part probably
+//                if(cluster_size[i]==0){
+//                    max_min_newcenter(dim,data,k,cluster_center,i);
+//                    new_center=true;
+//                }
+            }
 
-    printf("loopcounter=%d\nThe quality of the clustering (SSE) is:= %lf\n",loop_counter,sum_of_squared_errors(dim,k,cluster_center,cluster_size,test));
+            change /= N;
+            loop_counter++;
+        }while( (change > threshold && loop_counter < 100) );//do while there is change in clusters or reached a lot of iterations
+
+    }
+
+    else{
+        loop_counter=0;
+        // If this branch is taken, it means we already have at least 2 clusters
+        lower_bound=max_clusterssd*dim*N;
+        upper_bound=(( (max_clusterssd*dim*N) + (cluster_size[max_clusterssd]*dim) ) -1);
+        // Get a random point within the cluster about to be bisected.
+        do{
+            r = rand();
+            // Keep getting random numbers until r is within bounds and the number is multiple of dim
+        }while (r < lower_bound || r > upper_bound || (r%dim != 0));
+        // Now find the furthest point from the random point (within the cluster)
+        x = farthest_point_withinc(dim,test,&test[r],max_clusterssd,cluster_size);
+        // Now update cluster centers
+        for (int i = 0; i < dim; ++i) {
+            cluster_center[max_clusterssd*dim + i] = test[r+i];
+            cluster_center[count_k*dim + i] = test[x+i];
+        }
+        // Assign the points within the cluster to the newly assigned centers
+        do{
+            change=0;
+//            new_center=false;
+            for (int g = 0; g < N*dim; g+=dim){
+                original_cluster=cluster_assign[g/dim];
+                //find the array index of the closest cluster center
+                index=find_closest_cluster(k,dim,cluster_center,&data[g]);
+                //if index/dim != cluster_assign[g/dim] the point has a new cluster,
+                //increment change variable & decrement size of old cluster, do nothing if it didn't have an old cluster
+                if(index/dim != cluster_assign[g/dim]){
+                    change++;
+                    //assign membership of point, index/dim= k cluster
+                    cluster_assign[g/dim]=index/dim;
+                    //update size of the cluster
+                    cluster_size[index/dim]++;
+                    //update cluster_points (ie the test array)
+                    //also need to reset values of a point that changed clusters (in test array too)
+                    for (int i = 0; i < dim; ++i) {
+                        test[(N * dim * index / dim) + (cluster_size[index / dim] * dim) + i] = data[g + i];
+                        // Now need to remove the point I moved to a new place in test ie reset its old location
+                        // Seems like it won't reset the newly added point because of the bounds in the for loop, but watch for this
+                        // Another thing to watch is that the for loop going through test finds a duplicate point after already having a replace point,
+                        //  could fix this with a break statement inside the if(memcmp), will apply this if it gives problems
+                        if (!found_old_point) {
+                            for (int j = N * dim * original_cluster; j < (dim * N * original_cluster) + (dim * cluster_size[original_cluster]); j += dim) {
+                                if (memcmp(&data[g], &test[j], sizeof(double) * dim) == 0) {
+                                    found_old_point = true;
+                                    replace_point = j;
+                                }
+                            }
+                        }
+                        test[replace_point+i] = 0;
+                    }
+                    found_old_point=false;
+                    if(original_cluster > -1 && original_cluster < k){
+                        //if the point had a previous cluster, decrease its size
+                        cluster_size[original_cluster]--;
+                    }
+                }
+            }
+            //sum & avg to get new centers for each cluster
+            for (int it = 1; it < 3; it++) {
+                //printf("it is zero:=%d\n",it);
+                if(it == 1){
+                    printf("in 1\n");
+                    for (int j = 0; j < dim * cluster_size[max_clusterssd]; ++j) {
+                        array[(max_clusterssd*dim) + (j%dim)]+=test[(max_clusterssd*dim*N)+j];
+                    }
+                    for (int l = 0; l < dim; ++l) {
+                        cluster_center[(max_clusterssd*dim)+l]=array[(max_clusterssd*dim)+l]/cluster_size[max_clusterssd];
+                        //get the avg & assign the new center
+                        //reset array for next iteration
+                        array[(max_clusterssd*dim)+l]=0;
+                    }
+                }
+                if(it == 2){
+                    printf("in 1\n");
+                    for (int j = 0; j < dim * cluster_size[count_k]; ++j) {
+                        array[(count_k*dim) + (j%dim)]+=test[(count_k*dim*N)+j];
+                    }
+                    for (int l = 0; l < dim; ++l) {
+                        cluster_center[(count_k*dim)+l]=array[(count_k*dim)+l]/cluster_size[count_k];
+                        //get the avg & assign the new center
+                        //reset array for next iteration
+                        array[(count_k*dim)+l]=0;
+                    }
+                }
+            }
+            change /= N;
+            loop_counter++;
+        }while( (change > threshold && loop_counter < 100) );
+    }
+    //printf("loopcounter=%d\nThe quality of the clustering (SSE) is:= %lf\n",loop_counter,sum_of_squared_errors(dim,k,cluster_center,cluster_size,test));
 
     return 0;
 }
@@ -566,7 +673,7 @@ int farthest_point_withinc(int dim, double *test, double *point, int max_cluster
     double distance, max_distance;
     int index=max_clusterssd*dim*N;
     max_distance=euclidean_distance_8dims(&test[index], point);
-    for (int i = index+dim; i < ((max_clusterssd*dim*N) + (cluster_size[max_clusterssd] * dim)); i+=dim) {
+    for (int i = index+dim; i < ( (index) + (cluster_size[max_clusterssd] * dim)); i+=dim) {
         distance=euclidean_distance_8dims(point,&test[i]);
         if (distance > max_distance){
             max_distance=distance;
@@ -574,4 +681,69 @@ int farthest_point_withinc(int dim, double *test, double *point, int max_cluster
         }
     }
     return index;
+}
+
+int kmeans2_2(int dim, double *data, int k, int *cluster_assign, double *cluster_center, int *cluster_size){
+    //Will do 5 iterations to complete bisecting k-means.
+    int index;
+    double change;
+    int loop_counter=0;
+    //bool new_center;
+    double *test;
+    test=calloc(k*N*dim, sizeof(double));
+    double array[dim*k];
+    //initialize array to 0
+    memset(array, 0, dim*k*sizeof(double));
+    //each data point calculates its distance to the k centers.
+    //assign the data point to the cluster whose center is the closest
+    int original_cluster;
+    do{
+        change=0;
+        //new_center=false;
+        for (int g = 0; g < N * dim; g+=dim) {
+            original_cluster=cluster_assign[g/dim];
+            //find the array index of the closest cluster center
+            index=find_closest_cluster(k,dim,cluster_center,&data[g]);
+            //if index/dim != cluster_assign[g/dim] the point has a new cluster,
+            //increment change variable & decrement size of old cluster, do nothing if it didnt have an old cluster
+            if(index/dim != cluster_assign[g/dim]){
+                change++;
+                //assign membership of point, index/dim=k cluster
+                cluster_assign[g/dim]=index/dim;
+                //update size of the cluster
+                cluster_size[index/dim]++;
+                //update cluster_points
+                for (int i = 0; i < dim; ++i) {
+                    test[(N*dim*index/dim)+(cluster_size[index/dim]*dim)+i] = data[g+i];
+                }
+                if(original_cluster > -1 && original_cluster < k){
+                    //if the point had a previous cluster, decrease its size
+                    cluster_size[original_cluster]--;
+                }
+            }
+        }
+        //sum & avg to get new centers for each cluster
+        for (int i = 0; i < k; ++i) {
+            for (int j = 0; j < cluster_size[i] * dim; ++j) {
+                array[(i*dim) +(j%dim)]+=test[(i*dim*N)+j];
+            }
+            for (int l = 0; l < dim; ++l) {
+                cluster_center[(i*dim)+l]=array[(i*dim)+l]/cluster_size[i];//get the avg & assign the new center
+                //reset array for next iteration
+                array[(i*dim)+l]=0;
+            }
+            //take care of empty clusters here, by using max_min procedure to get new center
+            if(cluster_size[i]==0){
+                max_min_newcenter(dim,data,k,cluster_center,i);
+                //new_center=true;
+            }
+        }
+
+        change /= N;
+        loop_counter++;
+    }while( (change > threshold && loop_counter <= 5) );//do while there is change in clusters or reached 5 iterations
+
+    //printf("loopcounter=%d\nThe quality of the clustering (SSE) is:= %lf\n",loop_counter,sum_of_squared_errors(dim,k,cluster_center,cluster_size,test));
+    return 0;
+
 }
