@@ -588,7 +588,7 @@ int kmeans3(int dim, double *data, int k, int *cluster_assign, double *cluster_c
                 index=find_closest_cluster(k,dim,cluster_center,&data[g]);
                 //if index/dim != cluster_assign[g/dim] the point has a new cluster,
                 //increment change variable & decrement size of old cluster, do nothing if it didn't have an old cluster
-                if(index/dim != cluster_assign[g/dim]){
+                if(index/dim != cluster_assign[g/dim] && (index/dim == max_clusterssd || index/dim == count_k-1)){
                     change++;
                     //assign membership of point, index/dim= k cluster
                     cluster_assign[g/dim]=index/dim;
