@@ -499,7 +499,7 @@ int kmeans3(int dim, double *data, int k, int *cluster_assign, double *cluster_c
     int loop_counter=0;
     bool found_old_point;
     //bool new_center;
-    double array[dim*k];
+    double array[dim*count_k];
     found_old_point=false;
     //initialize array to 0
     memset(array, 0, dim*k*sizeof(double));
@@ -576,7 +576,7 @@ int kmeans3(int dim, double *data, int k, int *cluster_assign, double *cluster_c
         // Now update cluster centers
         for (int i = 0; i < dim; ++i) {
             cluster_center[max_clusterssd*dim + i] = test[r+i];
-            cluster_center[count_k*dim + i] = test[x+i];
+            cluster_center[(count_k-1)*dim + i] = test[x+i];
         }
         // Assign the points within the cluster to the newly assigned centers
         do{
@@ -620,6 +620,9 @@ int kmeans3(int dim, double *data, int k, int *cluster_assign, double *cluster_c
                 }
             }
             //sum & avg to get new centers for each cluster
+            //make sure array is 0
+            //reset array[20] for some reason at this point is not zero
+            array[20] = 0;
             for (int j = 0; j < dim * cluster_size[max_clusterssd]; ++j) {
                    array[(max_clusterssd*dim) + (j%dim)]+=test[(max_clusterssd*dim*N)+j];
             }
@@ -629,14 +632,14 @@ int kmeans3(int dim, double *data, int k, int *cluster_assign, double *cluster_c
                 //reset array for next iteration
                 array[(max_clusterssd*dim)+l]=0;
             }
-            for (int j = 0; j < dim * cluster_size[count_k]; ++j) {
-                array[(count_k*dim) + (j%dim)]+=test[(count_k*dim*N)+j];
+            for (int j = 0; j < dim * cluster_size[count_k-1]; ++j) {
+                array[((count_k-1)*dim) + (j%dim)]+=test[((count_k-1)*dim*N)+j];
             }
             for (int l = 0; l < dim; ++l) {
-                cluster_center[(count_k*dim)+l]=array[(count_k*dim)+l]/cluster_size[count_k];
+                cluster_center[((count_k-1)*dim)+l]=array[((count_k-1)*dim)+l]/cluster_size[count_k-1];
                 //get the avg & assign the new center
                 //reset array for next iteration
-                array[(count_k*dim)+l]=0;
+                array[((count_k-1)*dim)+l]=0;
             }
 
             change /= N;
