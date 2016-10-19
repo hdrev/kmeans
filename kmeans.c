@@ -639,7 +639,6 @@ int kmeans3(int dim, double *data, int k, int *cluster_assign, double *cluster_c
                 array[(count_k*dim)+l]=0;
             }
 
-
             change /= N;
             loop_counter++;
         }while( (change > threshold && loop_counter < 100) );
