@@ -35,7 +35,7 @@ int kmeans2_2(int dim, double *data, int k, int *cluster_assign, double *cluster
 int main(){
     int k, dim;
     //k can be 4,8,16,32
-    k=4;
+    k=16;
     dim=8;
     //cluster_asssign is an array of size N
     //where cluster_assign[i] indicates which of the k clusters the i-th datum is assigned to.
